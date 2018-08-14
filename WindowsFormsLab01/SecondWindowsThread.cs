@@ -6,69 +6,56 @@ namespace WindowsFormsLab01
 {
     class SecondWindowsThread : IDisposable
     {
-        private Thread thread;
         private SynchronizationContext ctx;
-        private ManualResetEvent mre;
 
         public SecondWindowsThread()
         {
-            this.mre = new ManualResetEvent(false);
+            ManualResetEvent mre = new ManualResetEvent(false);
             try
             {
-                this.thread = new Thread(
+                Thread thread = new Thread(
                     () =>
                     {
-                        Application.Idle += this.Initialize;
+                        this.ctx = new WindowsFormsSynchronizationContext();
+                        mre.Set();
                         Application.Run();
                     }
                 );
                 thread.IsBackground = true;
                 thread.SetApartmentState(ApartmentState.STA);
-                thread.Name = "WaitDialog";
                 thread.Start();
-                this.mre.WaitOne();
+                mre.WaitOne();
             }
             finally
             {
-                this.mre.Dispose();
+                mre.Dispose();
             }
-        }
-
-        private void Initialize(Object sender, EventArgs e)
-        {
-            this.ctx = SynchronizationContext.Current;
-            this.mre.Set();
-            Application.Idle -= this.Initialize;
         }
 
         #region IDisposable Support
         private bool disposedValue = false;
 
-        protected virtual void Dispose(bool disposing)
+        public void Dispose()
         {
-            if (!disposedValue)
+            if (disposedValue) return;
+
+            if (this.ctx != null)
             {
-                if (disposing)
-                {
-                    if (this.ctx != null)
-                    {
-                        this.ctx.Send((_) => Application.ExitThread(), null);
-                        this.ctx = null;
-                    }
-                }
-                disposedValue = true;
+                this.ctx.Send((_) => Application.ExitThread(), null);
+                this.ctx = null;
             }
+            disposedValue = true;
         }
 
-        void IDisposable.Dispose()
-        {
-            Dispose(true);
-        }
         #endregion
 
         public SynchronizationContext SynchronizationContext
         {
-            get { return this.ctx; }
+            get
+            {
+                if (this.disposedValue) throw new ObjectDisposedException(nameof(SynchronizationContext));
+                return this.ctx;
+            }
         }
 
     }
